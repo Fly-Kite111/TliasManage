@@ -1,0 +1,13 @@
+# 配置模板文件（此文件会提交到仓库，请勿填入真实密码）
+#
+# 使用方法：
+#   1. 复制本文件并重命名为 application-local.yml
+#   2. 把下面的 your-mysql-password 换成你本地 MySQL 的 root 密码
+#   3. application-local.yml 已被 .gitignore 排除，不会被提交
+#
+# 如果你是部署到服务器，不建此文件也可以，改用环境变量注入：
+#   Linux/macOS:  export DB_PASSWORD=你的密码
+#   Windows CMD:  set DB_PASSWORD=你的密码
+spring:
+  datasource:
+    password: "your-mysql-password"

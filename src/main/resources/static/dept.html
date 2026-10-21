@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>部门管理 - Tlias 教学管理系统</title>
+    <!-- Element Plus 样式 -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        body { margin: 0; background: #f5f7fa; font-family: "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif; }
+        #app { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+        .header-card { margin-bottom: 20px; }
+        .header-title { font-size: 20px; font-weight: 600; color: #303133; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .nav { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- 顶部导航 -->
+    <el-card class="header-card" shadow="never">
+        <span class="header-title">Tlias 教学管理系统</span>
+    </el-card>
+
+    <el-card shadow="never">
+        <div class="nav">
+            <el-button type="primary" plain>部门管理</el-button>
+            <el-button plain onclick="location.href='emp.html'">员工管理</el-button>
+        </div>
+
+        <div class="toolbar">
+            <span style="font-size:16px;font-weight:600;">部门列表</span>
+            <el-button type="primary" @click="openAddDialog">+ 新增部门</el-button>
+        </div>
+
+        <!-- 部门数据表格 -->
+        <el-table :data="deptList" border stripe v-loading="loading" style="width: 100%">
+            <el-table-column type="index" label="序号" width="70" align="center"></el-table-column>
+            <el-table-column prop="name" label="部门名称" align="center"></el-table-column>
+            <el-table-column prop="createTime" label="创建时间" align="center"></el-table-column>
+            <el-table-column prop="updateTime" label="最后操作时间" align="center"></el-table-column>
+            <el-table-column label="操作" width="180" align="center">
+                <template #default="scope">
+                    <el-button size="small" type="primary" @click="openEditDialog(scope.row.id)">编辑</el-button>
+                    <el-button size="small" type="danger" @click="deleteDept(scope.row.id)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+    </el-card>
+
+    <!-- 新增/编辑部门对话框 -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="400px">
+        <el-form :model="deptForm" label-width="90px">
+            <el-form-item label="部门名称" required>
+                <el-input v-model="deptForm.name" placeholder="请输入部门名称"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible = false">取 消</el-button>
+            <el-button type="primary" @click="saveDept">确 定</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<!-- Vue 3 -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<!-- Element Plus -->
+<script src="https://unpkg.com/element-plus"></script>
+<!-- Axios -->
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                deptList: [],        // 部门列表数据
+                loading: false,
+                dialogVisible: false,
+                dialogTitle: '新增部门',
+                deptForm: { id: null, name: '' }
+            };
+        },
+        mounted() {
+            // 页面加载完成后，发送 Ajax 请求查询部门列表
+            this.loadDeptList();
+        },
+        methods: {
+            // Ajax 查询部门列表并渲染
+            loadDeptList() {
+                this.loading = true;
+                axios.get('/depts').then(res => {
+                    if (res.data.code === 1) {
+                        this.deptList = res.data.data;   // 数据驱动视图，自动渲染表格
+                    } else {
+                        ElementPlus.ElMessage.error(res.data.msg);
+                    }
+                }).catch(() => {
+                    ElementPlus.ElMessage.error('请求失败，请检查服务端是否启动');
+                }).finally(() => {
+                    this.loading = false;
+                });
+            },
+            // 打开新增对话框
+            openAddDialog() {
+                this.dialogTitle = '新增部门';
+                this.deptForm = { id: null, name: '' };
+                this.dialogVisible = true;
+            },
+            // 打开编辑对话框：先 Ajax 查询该部门数据回显
+            openEditDialog(id) {
+                axios.get('/depts/' + id).then(res => {
+                    if (res.data.code === 1) {
+                        this.dialogTitle = '编辑部门';
+                        this.deptForm = { id: res.data.data.id, name: res.data.data.name };
+                        this.dialogVisible = true;
+                    }
+                });
+            },
+            // 保存（新增 POST / 修改 PUT）
+            saveDept() {
+                if (!this.deptForm.name) {
+                    ElementPlus.ElMessage.warning('请输入部门名称');
+                    return;
+                }
+                const req = this.deptForm.id
+                    ? axios.put('/depts', this.deptForm)     // 修改
+                    : axios.post('/depts', this.deptForm);   // 新增
+                req.then(res => {
+                    if (res.data.code === 1) {
+                        ElementPlus.ElMessage.success('保存成功');
+                        this.dialogVisible = false;
+                        this.loadDeptList();   // 重新加载列表
+                    } else {
+                        ElementPlus.ElMessage.error(res.data.msg);
+                    }
+                });
+            },
+            // 删除部门
+            deleteDept(id) {
+                ElementPlus.ElMessageBox.confirm('确认删除该部门吗？', '提示', { type: 'warning' })
+                    .then(() => {
+                        axios.delete('/depts/' + id).then(res => {
+                            if (res.data.code === 1) {
+                                ElementPlus.ElMessage.success('删除成功');
+                                this.loadDeptList();
+                            } else {
+                                ElementPlus.ElMessage.error(res.data.msg);
+                            }
+                        });
+                    }).catch(() => {});
+            }
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>

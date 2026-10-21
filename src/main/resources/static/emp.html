@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>员工管理 - Tlias 教学管理系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <style>
+        body { margin: 0; background: #f5f7fa; font-family: "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif; }
+        #app { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .header-card { margin-bottom: 20px; }
+        .header-title { font-size: 20px; font-weight: 600; color: #303133; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .nav { margin-bottom: 20px; }
+        .search-bar { margin-bottom: 15px; }
+        .pagination { margin-top: 15px; display: flex; justify-content: flex-end; }
+        .avatar { width: 32px; height: 32px; border-radius: 50%; vertical-align: middle; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-card class="header-card" shadow="never">
+        <span class="header-title">Tlias 教学管理系统</span>
+    </el-card>
+
+    <el-card shadow="never">
+        <div class="nav">
+            <el-button plain onclick="location.href='dept.html'">部门管理</el-button>
+            <el-button type="primary" plain>员工管理</el-button>
+        </div>
+
+        <!-- 条件搜索栏 -->
+        <el-form :inline="true" :model="searchForm" class="search-bar">
+            <el-form-item label="姓名">
+                <el-input v-model="searchForm.name" placeholder="请输入姓名" clearable></el-input>
+            </el-form-item>
+            <el-form-item label="性别">
+                <el-select v-model="searchForm.gender" placeholder="请选择" clearable style="width: 100px">
+                    <el-option label="男" :value="1"></el-option>
+                    <el-option label="女" :value="2"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="入职日期">
+                <el-date-picker v-model="searchForm.dateRange" type="daterange"
+                                range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期"
+                                value-format="YYYY-MM-DD" style="width: 240px"></el-date-picker>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" @click="search">查询</el-button>
+                <el-button @click="resetSearch">清空</el-button>
+            </el-form-item>
+        </el-form>
+
+        <div class="toolbar">
+            <span style="font-size:16px;font-weight:600;">员工列表</span>
+            <el-button type="primary" @click="openAddDialog">+ 新增员工</el-button>
+        </div>
+
+        <!-- 员工数据表格 -->
+        <el-table :data="empList" border stripe v-loading="loading" style="width: 100%">
+            <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
+            <el-table-column label="头像" width="70" align="center">
+                <template #default="scope">
+                    <img :src="scope.row.image" class="avatar" alt="">
+                </template>
+            </el-table-column>
+            <el-table-column prop="name" label="姓名" width="90" align="center"></el-table-column>
+            <el-table-column prop="username" label="用户名" width="110" align="center"></el-table-column>
+            <el-table-column label="性别" width="70" align="center">
+                <template #default="scope">{{ scope.row.gender === 1 ? '男' : '女' }}</template>
+            </el-table-column>
+            <el-table-column label="职位" width="100" align="center">
+                <template #default="scope">{{ jobText(scope.row.job) }}</template>
+            </el-table-column>
+            <el-table-column prop="entrydate" label="入职日期" width="110" align="center"></el-table-column>
+            <el-table-column prop="deptName" label="所属部门" width="100" align="center"></el-table-column>
+            <el-table-column prop="updateTime" label="最后操作时间" align="center"></el-table-column>
+            <el-table-column label="操作" width="160" align="center">
+                <template #default="scope">
+                    <el-button size="small" type="primary" @click="openEditDialog(scope.row.id)">编辑</el-button>
+                    <el-button size="small" type="danger" @click="deleteEmp(scope.row.id)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <el-pagination background layout="total, sizes, prev, pager, next, jumper"
+                           :total="total" v-model:current-page="page" v-model:page-size="pageSize"
+                           :page-sizes="[5, 10, 20, 50]"
+                           @current-change="loadEmpList" @size-change="search"></el-pagination>
+        </div>
+    </el-card>
+
+    <!-- 新增/编辑员工对话框 -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
+        <el-form :model="empForm" label-width="90px">
+            <el-form-item label="用户名" required>
+                <el-input v-model="empForm.username" placeholder="请输入用户名"></el-input>
+            </el-form-item>
+            <el-form-item label="姓名" required>
+                <el-input v-model="empForm.name" placeholder="请输入姓名"></el-input>
+            </el-form-item>
+            <el-form-item label="性别">
+                <el-radio-group v-model="empForm.gender">
+                    <el-radio :value="1">男</el-radio>
+                    <el-radio :value="2">女</el-radio>
+                </el-radio-group>
+            </el-form-item>
+            <el-form-item label="职位">
+                <el-select v-model="empForm.job" placeholder="请选择职位" style="width: 100%">
+                    <el-option label="班主任" :value="1"></el-option>
+                    <el-option label="讲师" :value="2"></el-option>
+                    <el-option label="学工主管" :value="3"></el-option>
+                    <el-option label="教研主管" :value="4"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="入职日期">
+                <el-date-picker v-model="empForm.entrydate" type="date" value-format="YYYY-MM-DD"
+                                placeholder="请选择入职日期" style="width: 100%"></el-date-picker>
+            </el-form-item>
+            <el-form-item label="所属部门">
+                <el-select v-model="empForm.deptId" placeholder="请选择部门" style="width: 100%">
+                    <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="头像">
+                <el-input v-model="empForm.image" placeholder="请输入图片 URL"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible = false">取 消</el-button>
+            <el-button type="primary" @click="saveEmp">确 定</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                empList: [],          // 员工列表数据
+                deptOptions: [],      // 部门下拉选项
+                loading: false,
+                total: 0,
+                page: 1,
+                pageSize: 10,
+                searchForm: { name: '', gender: null, dateRange: null },
+                dialogVisible: false,
+                dialogTitle: '新增员工',
+                empForm: this.emptyForm()
+            };
+        },
+        mounted() {
+            this.loadEmpList();    // Ajax 分页查询员工
+            this.loadDeptOptions(); // Ajax 查询部门下拉框
+        },
+        methods: {
+            emptyForm() {
+                return { id: null, username: '', name: '', gender: 1, job: null, entrydate: null, deptId: null, image: '' };
+            },
+            jobText(job) {
+                return { 1: '班主任', 2: '讲师', 3: '学工主管', 4: '教研主管' }[job] || '-';
+            },
+            // Ajax 分页条件查询员工列表并渲染
+            loadEmpList() {
+                this.loading = true;
+                const params = {
+                    page: this.page,
+                    pageSize: this.pageSize,
+                    name: this.searchForm.name || undefined,
+                    gender: this.searchForm.gender || undefined
+                };
+                if (this.searchForm.dateRange && this.searchForm.dateRange.length === 2) {
+                    params.begin = this.searchForm.dateRange[0];
+                    params.end = this.searchForm.dateRange[1];
+                }
+                axios.get('/emps', { params }).then(res => {
+                    if (res.data.code === 1) {
+                        this.empList = res.data.data.rows;
+                        this.total = res.data.data.total;
+                    } else {
+                        ElementPlus.ElMessage.error(res.data.msg);
+                    }
+                }).catch(() => {
+                    ElementPlus.ElMessage.error('请求失败，请检查服务端是否启动');
+                }).finally(() => {
+                    this.loading = false;
+                });
+            },
+            // Ajax 查询全部部门（下拉框）
+            loadDeptOptions() {
+                axios.get('/depts').then(res => {
+                    if (res.data.code === 1) {
+                        this.deptOptions = res.data.data;
+                    }
+                });
+            },
+            search() {
+                this.page = 1;
+                this.loadEmpList();
+            },
+            resetSearch() {
+                this.searchForm = { name: '', gender: null, dateRange: null };
+                this.search();
+            },
+            openAddDialog() {
+                this.dialogTitle = '新增员工';
+                this.empForm = this.emptyForm();
+                this.dialogVisible = true;
+            },
+            // 编辑：Ajax 查询员工数据回显
+            openEditDialog(id) {
+                axios.get('/emps/' + id).then(res => {
+                    if (res.data.code === 1) {
+                        const e = res.data.data;
+                        this.dialogTitle = '编辑员工';
+                        this.empForm = {
+                            id: e.id, username: e.username, name: e.name, gender: e.gender,
+                            job: e.job, entrydate: e.entrydate, deptId: e.deptId, image: e.image
+                        };
+                        this.dialogVisible = true;
+                    }
+                });
+            },
+            // 保存（新增 POST / 修改 PUT）
+            saveEmp() {
+                if (!this.empForm.username || !this.empForm.name) {
+                    ElementPlus.ElMessage.warning('用户名和姓名不能为空');
+                    return;
+                }
+                const req = this.empForm.id
+                    ? axios.put('/emps', this.empForm)
+                    : axios.post('/emps', this.empForm);
+                req.then(res => {
+                    if (res.data.code === 1) {
+                        ElementPlus.ElMessage.success('保存成功');
+                        this.dialogVisible = false;
+                        this.loadEmpList();
+                    } else {
+                        ElementPlus.ElMessage.error(res.data.msg);
+                    }
+                });
+            },
+            // 删除员工
+            deleteEmp(id) {
+                ElementPlus.ElMessageBox.confirm('确认删除该员工吗？', '提示', { type: 'warning' })
+                    .then(() => {
+                        axios.delete('/emps/' + id).then(res => {
+                            if (res.data.code === 1) {
+                                ElementPlus.ElMessage.success('删除成功');
+                                // 删除后若当前页已无数据，回退一页
+                                if (this.empList.length === 1 && this.page > 1) {
+                                    this.page--;
+                                }
+                                this.loadEmpList();
+                            } else {
+                                ElementPlus.ElMessage.error(res.data.msg);
+                            }
+                        });
+                    }).catch(() => {});
+            }
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>
